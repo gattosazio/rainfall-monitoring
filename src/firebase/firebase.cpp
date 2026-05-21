@@ -2,7 +2,6 @@
 #include <ArduinoJson.h>
 #include "../helpers/helpers.h"
 #include "../modem/modem.h"
-#include "../gps/gps.h"
 #include "../domain/config.h"
 
 namespace {
@@ -11,11 +10,6 @@ String buildPayload(const SensorSnapshot& snapshot) {
 
   doc["timestamp"] = snapshot.timestamp;
   doc["send_reason"] = snapshot.sendReason;
-
-  JsonObject gps = doc["gps"].to<JsonObject>();
-  gps["latitude"] = snapshot.gpsLat;
-  gps["longitude"] = snapshot.gpsLon;
-  gps["altitude_m"] = snapshot.gpsAlt;
 
   JsonObject rainRaw = doc["rain_gauge"]["raw"].to<JsonObject>();
   rainRaw["tip_count"] = snapshot.rainGauge.totalTips;
@@ -32,6 +26,7 @@ String buildPayload(const SensorSnapshot& snapshot) {
   JsonObject ultrasonicRaw = doc["ultrasonic"]["raw"].to<JsonObject>();
   ultrasonicRaw["pulse_us"] = snapshot.ultrasonic.rawPulseUs;
   ultrasonicRaw["distance_cm"] = snapshot.ultrasonic.rawDistanceCm;
+  ultrasonicRaw["median_distance_cm"] = snapshot.ultrasonic.medianRawDistanceCm;
   ultrasonicRaw["valid_samples"] = snapshot.ultrasonic.validSampleCount;
   ultrasonicRaw["valid"] = snapshot.ultrasonic.isValid;
 
@@ -98,7 +93,6 @@ bool postPayload(const String& payload) {
 
 bool sendToFirebase(const SensorSnapshot& snapshot) {
   DEBUG_PRINTLN("[DEBUG] Starting Firebase send...");
-  stopGPSStreaming();
 
   String payload = buildPayload(snapshot);
   DEBUG_PRINTLN("[DEBUG] Payload: " + payload);

@@ -17,6 +17,7 @@ struct RainGaugeReading {
 struct UltrasonicReading {
   long rawPulseUs;
   float rawDistanceCm;
+  float medianRawDistanceCm;
   float filteredDistanceCm;
   float waterLevelCm;
   unsigned int validSampleCount;
@@ -28,9 +29,6 @@ struct SensorSnapshot {
   String sendReason;
   RainGaugeReading rainGauge;
   UltrasonicReading ultrasonic;
-  float gpsLat;
-  float gpsLon;
-  float gpsAlt;
 };
 
 #endif

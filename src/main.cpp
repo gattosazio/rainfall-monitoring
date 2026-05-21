@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include "helpers/helpers.h"
 #include "modem/modem.h"
-#include "gps/gps.h"
 #include "raingauge/raingauge.h"
 #include "ultrasonic/ultrasonic.h"
 #include "firebase/firebase.h"
@@ -12,7 +11,6 @@
 
 unsigned long lastSensorRead = 0;
 unsigned long lastFirebaseSend = 0;
-unsigned long lastGPSUpdate = 0;
 unsigned long bootTime = 0;
 
 unsigned long lastSentTipCount = 0;
@@ -23,9 +21,6 @@ SensorSnapshot captureSnapshot(const String& timestamp, const String& sendReason
   snapshot.sendReason = sendReason;
   snapshot.rainGauge = getRainGaugeReading();
   snapshot.ultrasonic = readUltrasonic();
-  snapshot.gpsLat = Config::GPS_ENABLED ? gpsLat : 0.0f;
-  snapshot.gpsLon = Config::GPS_ENABLED ? gpsLon : 0.0f;
-  snapshot.gpsAlt = Config::GPS_ENABLED ? gpsAlt : 0.0f;
   return snapshot;
 }
 
@@ -56,17 +51,6 @@ void setup() {
 
   String currentTime = getModemTime();
   DEBUG_PRINTLN("Modem clock synchronized: " + currentTime);
-
-  if (Config::GPS_ENABLED) {
-    DEBUG_PRINTLN(" Initializing GPS...");
-    if (enableGPS()) {
-      DEBUG_PRINTLN("GPS initialization successful");
-    } else {
-      DEBUG_PRINTLN("GPS initialization failed - will retry in loop");
-    }
-  } else {
-    DEBUG_PRINTLN(" GPS disabled. Using static zero coordinates.");
-  }
   delay(2000);
 
   DEBUG_PRINTLN("System is now active for 2 hours before hibernation.\n");
@@ -85,8 +69,11 @@ void loop() {
 
     if (ultrasonicReading.rawDistanceCm > 0) {
       Serial.printf("Raw Ultrasonic Distance: %.1f cm\n", ultrasonicReading.rawDistanceCm);
+      Serial.printf("Median Ultrasonic Distance: %.1f cm\n",
+                    ultrasonicReading.medianRawDistanceCm);
     } else {
       Serial.println("Raw Ultrasonic Distance: INVALID");
+      Serial.println("Median Ultrasonic Distance: INVALID");
     }
 
     DEBUG_PRINTF("Water Depth: %.1f cm\n", ultrasonicReading.waterLevelCm);
@@ -94,17 +81,6 @@ void loop() {
     DEBUG_PRINTF("Rainfall Rate: %.2f mm/hr\n", rainReading.rainRateMmPerHour);
 
     lastSensorRead = now;
-  }
-
-  if (Config::GPS_ENABLED && now - lastGPSUpdate >= Config::GPS_UPDATE_INTERVAL_MS) {
-    DEBUG_PRINTLN("\n Attempting GPS update...");
-    if (updateGPSLocation()) {
-      DEBUG_PRINTLN("GPS location updated");
-    } else {
-      DEBUG_PRINTLN("Waiting for GPS fix...");
-      printGPSDiagnostics();
-    }
-    lastGPSUpdate = now;
   }
 
   unsigned long localTipCount = getRainGaugeTipCount();
@@ -141,7 +117,8 @@ void loop() {
     }
   }
 
-  if (millis() - bootTime >= Config::ACTIVE_DURATION_MS) {
+  if (Config::HIBERNATION_ENABLED &&
+      millis() - bootTime >= Config::ACTIVE_DURATION_MS) {
     DEBUG_PRINTLN("\n Active window elapsed (2 hours). Preparing for hibernation...");
     detachInterrupt(digitalPinToInterrupt(Config::TIP_PIN));
     enterHibernation();

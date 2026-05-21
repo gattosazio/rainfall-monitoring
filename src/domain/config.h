@@ -9,9 +9,8 @@ constexpr unsigned long SENSOR_READ_INTERVAL_MS = 3000UL;
 constexpr unsigned long FIREBASE_WET_INTERVAL_MS = 180000UL;
 constexpr unsigned long FIREBASE_DRY_INTERVAL_MS = 3600000UL;
 constexpr unsigned long FIREBASE_RETRY_DELAY_MS = 60000UL;
-constexpr unsigned long GPS_UPDATE_INTERVAL_MS = 30000UL;
 constexpr unsigned long ACTIVE_DURATION_MS = 7200000UL;
-constexpr bool GPS_ENABLED = false;
+constexpr bool HIBERNATION_ENABLED = false;
 
 constexpr unsigned int FIREBASE_HTTP_RETRIES = 3;
 

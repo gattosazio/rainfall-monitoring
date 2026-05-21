@@ -51,6 +51,7 @@ UltrasonicReading readUltrasonic() {
   UltrasonicReading reading;
   reading.rawPulseUs = rawPulseUs;
   reading.rawDistanceCm = rawDistanceCm;
+  reading.medianRawDistanceCm = -1.0f;
   reading.filteredDistanceCm = -1.0f;
   reading.waterLevelCm = -1.0f;
   reading.validSampleCount = count;
@@ -69,6 +70,7 @@ UltrasonicReading readUltrasonic() {
   }
 
   float median = readings[count / 2];
+  reading.medianRawDistanceCm = median;
   float deviations[Config::ULTRASONIC_SAMPLES];
   for (int i = 0; i < count; ++i) {
     deviations[i] = fabs(readings[i] - median);

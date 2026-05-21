@@ -2,13 +2,13 @@
 
 ## Scope
 
-This refactor reviewed the existing ESP32 + modem + GPS flood/rainfall monitor and changed the firmware to focus on:
+This refactor reviewed the existing ESP32 + modem flood/rainfall monitor and changed the firmware to focus on:
 
 - cleaner sensor acquisition flow
 - raw + processed sensor telemetry
 - removal of water status labels
 - hourly dry-weather uploads
-- GPS can be disabled for static-node deployments
+- hibernation can be disabled for continuous monitoring
 - documented calibration constants
 
 ## Critique Of Old System
@@ -16,7 +16,7 @@ This refactor reviewed the existing ESP32 + modem + GPS flood/rainfall monitor a
 ### Architecture
 
 - `main.cpp` mixed scheduling, sensor reads, debug prints, and Firebase upload policy in one loop.
-- `firebase.cpp` reached into global sensor and GPS state instead of accepting a full data snapshot.
+- `firebase.cpp` reached into global sensor state instead of accepting a full data snapshot.
 - ultrasonic reads were repeated in different places, so one loop cycle could upload a different value from the value just printed.
 - calibration constants were buried inside sensor `.cpp` files, not in one config location.
 
@@ -45,7 +45,7 @@ This refactor reviewed the existing ESP32 + modem + GPS flood/rainfall monitor a
 
 - upload logic had no retry loop beyond a periodic retry trick in `main.cpp`.
 - upload function only checked for one success string and had no structured payload generation.
-- GPS streaming stop, HTTP init, HTTP send, and retry behavior were not isolated cleanly.
+- HTTP init, HTTP send, and retry behavior were not isolated cleanly.
 
 ### Maintainability / Scale
 
@@ -84,11 +84,12 @@ This refactor reviewed the existing ESP32 + modem + GPS flood/rainfall monitor a
 - every upload now contains raw and processed rain gauge data
 - every upload now contains raw and processed ultrasonic data
 - water warning labels are removed from code and payload
-- GPS is currently disabled in firmware for static-node deployment, so uploaded coordinates remain `0`
+- GPS is removed from the active firmware payload for static-node deployment
+- hibernation is currently disabled in firmware, so the node stays awake beyond the old 2-hour limit
 
 ## New System Flow
 
-1. boot sensors, modem, GPS, SPIFFS
+1. boot sensors, modem, SPIFFS
 2. loop updates rainfall counters
 3. periodic local sensor read prints debug values
 4. rain tip event sends immediate snapshot
@@ -179,11 +180,6 @@ Current payload shape:
 {
   "timestamp": "2026-05-21 14:22:11",
   "send_reason": "rain_event",
-  "gps": {
-    "latitude": 14.123456,
-    "longitude": 121.123456,
-    "altitude_m": 12.3
-  },
   "rain_gauge": {
     "raw": {
       "tip_count": 42,
@@ -202,6 +198,7 @@ Current payload shape:
     "raw": {
       "pulse_us": 13240,
       "distance_cm": 227.12,
+      "median_distance_cm": 225.90,
       "valid_samples": 8,
       "valid": true
     },
@@ -270,7 +267,6 @@ Monitor:
 - if Firebase schema changes, update README and payload builder together
 - after modem changes, re-test:
   - timestamp parsing
-  - GPS stop/start
   - HTTP upload
   - retry behavior
 
@@ -298,7 +294,7 @@ Note:
 - add battery voltage, RSSI, and reset-reason telemetry
 - add rolling history paths in Firebase instead of only overwriting one node
 - remove unused Firebase client library if modem HTTP mode remains the final design
-- clean GPS module strings and duplicate includes
+- remove unused GPS module files later if they are no longer needed
 - add unit tests for rainfall accumulation and water-level conversion
 
 ## File Map
