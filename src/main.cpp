@@ -7,21 +7,33 @@
 #include "firebase/firebase.h"
 #include "hibernation/hibernation.h"
 #include "loggers/loggers.h"
+#include "domain/config.h"
+#include "domain/telemetry.h"
 
-// Timing Settings
-const unsigned long SENSOR_READ_INTERVAL = 3000;
 unsigned long lastSensorRead = 0;
-
-const unsigned long FIREBASE_SEND_INTERVAL = 300000UL;  
 unsigned long lastFirebaseSend = 0;
-
-const unsigned long GPS_UPDATE_INTERVAL = 30000;
 unsigned long lastGPSUpdate = 0;
-
-const unsigned long ACTIVE_DURATION_MS = 7200000UL;  
 unsigned long bootTime = 0;
 
-int lastSentTipCount = 0;
+unsigned long lastSentTipCount = 0;
+
+SensorSnapshot captureSnapshot(const String& timestamp, const String& sendReason) {
+  SensorSnapshot snapshot;
+  snapshot.timestamp = timestamp;
+  snapshot.sendReason = sendReason;
+  snapshot.rainGauge = getRainGaugeReading();
+  snapshot.ultrasonic = readUltrasonic();
+  snapshot.gpsLat = Config::GPS_ENABLED ? gpsLat : 0.0f;
+  snapshot.gpsLon = Config::GPS_ENABLED ? gpsLon : 0.0f;
+  snapshot.gpsAlt = Config::GPS_ENABLED ? gpsAlt : 0.0f;
+  return snapshot;
+}
+
+unsigned long getPeriodicFirebaseIntervalMs() {
+  RainGaugeReading rainReading = getRainGaugeReading();
+  return rainReading.isRaining ? Config::FIREBASE_WET_INTERVAL_MS
+                               : Config::FIREBASE_DRY_INTERVAL_MS;
+}
 
 void setup() {
   Serial.begin(115200);
@@ -45,11 +57,15 @@ void setup() {
   String currentTime = getModemTime();
   DEBUG_PRINTLN("Modem clock synchronized: " + currentTime);
 
-  DEBUG_PRINTLN(" Initializing GPS...");
-  if (enableGPS()) {
-    DEBUG_PRINTLN("GPS initialization successful");
+  if (Config::GPS_ENABLED) {
+    DEBUG_PRINTLN(" Initializing GPS...");
+    if (enableGPS()) {
+      DEBUG_PRINTLN("GPS initialization successful");
+    } else {
+      DEBUG_PRINTLN("GPS initialization failed - will retry in loop");
+    }
   } else {
-    DEBUG_PRINTLN("GPS initialization failed - will retry in loop");
+    DEBUG_PRINTLN(" GPS disabled. Using static zero coordinates.");
   }
   delay(2000);
 
@@ -58,36 +74,29 @@ void setup() {
 
 void loop() {
   unsigned long now = millis();
-  static volatile unsigned long localTipCount;
 
   updateRainfall();
 
-  // --- SENSOR READ ---
-  if (now - lastSensorRead >= SENSOR_READ_INTERVAL) {
+  if (now - lastSensorRead >= Config::SENSOR_READ_INTERVAL_MS) {
     String timestamp = getModemTime();
+    RainGaugeReading rainReading = getRainGaugeReading();
+    UltrasonicReading ultrasonicReading = readUltrasonic();
     DEBUG_PRINTLN("\n--- Reading Sensors at " + timestamp + " ---");
 
-    float rawDist = getDistanceCM_refined();
-    if (rawDist > 0) {
-      Serial.printf("Raw Ultrasonic Distance: %.1f cm\n", rawDist);
+    if (ultrasonicReading.rawDistanceCm > 0) {
+      Serial.printf("Raw Ultrasonic Distance: %.1f cm\n", ultrasonicReading.rawDistanceCm);
     } else {
       Serial.println("Raw Ultrasonic Distance: INVALID");
     }
 
-    float distance = getWaterLevelCM();
-    DEBUG_PRINTF("Water Depth: %.1f cm\n", distance);
-    DEBUG_PRINTF("Total Rainfall: %.2f mm\n", totalRainfall);
-    DEBUG_PRINTF("Rainfall Rate: %.2f mm/hr\n", rainRate);
-
-    float percent = getWaterPercent();
-    String label = getWaterLabel();
-    Serial.printf("Water Level: %.1f%% → %s\n", percent, label.c_str());
+    DEBUG_PRINTF("Water Depth: %.1f cm\n", ultrasonicReading.waterLevelCm);
+    DEBUG_PRINTF("Total Rainfall: %.2f mm\n", rainReading.totalRainfallMm);
+    DEBUG_PRINTF("Rainfall Rate: %.2f mm/hr\n", rainReading.rainRateMmPerHour);
 
     lastSensorRead = now;
   }
 
-  // --- GPS UPDATE ---
-  if (now - lastGPSUpdate >= GPS_UPDATE_INTERVAL) {
+  if (Config::GPS_ENABLED && now - lastGPSUpdate >= Config::GPS_UPDATE_INTERVAL_MS) {
     DEBUG_PRINTLN("\n Attempting GPS update...");
     if (updateGPSLocation()) {
       DEBUG_PRINTLN("GPS location updated");
@@ -98,46 +107,43 @@ void loop() {
     lastGPSUpdate = now;
   }
 
-  // --- RAIN GAUGE EVENT ---
-  noInterrupts();
-  localTipCount = tipCount;
-  interrupts();
-
+  unsigned long localTipCount = getRainGaugeTipCount();
   if (localTipCount > lastSentTipCount) {
-    updateRainfall();
     String eventTime = getModemTime();
-    float waterDepth = getWaterLevelCM();
-    if (waterDepth < 0) waterDepth = 0.0;
+    SensorSnapshot snapshot = captureSnapshot(eventTime, "rain_event");
 
-    if (sendToFirebase(eventTime, totalRainfall, waterDepth)) {
+    if (sendToFirebase(snapshot)) {
       DEBUG_PRINTLN("Data sent to Firebase (rain gauge tipped)");
       lastSentTipCount = localTipCount;
-      lastFirebaseSend = now;  
+      lastFirebaseSend = now;
     } else {
       DEBUG_PRINTLN("Failed to send data to Firebase");
     }
   }
 
-  // --- PERIODIC FIREBASE UPDATE ---
-  if (now - lastFirebaseSend >= FIREBASE_SEND_INTERVAL) {
-    DEBUG_PRINTLN("\n Periodic Firebase update triggered (5 min interval)...");
+  unsigned long periodicIntervalMs = getPeriodicFirebaseIntervalMs();
+  if (now - lastFirebaseSend >= periodicIntervalMs) {
+    bool rainingNow = periodicIntervalMs == Config::FIREBASE_WET_INTERVAL_MS;
+    DEBUG_PRINTLN(rainingNow
+                      ? "\n Periodic Firebase update triggered (wet interval)..."
+                      : "\n Periodic Firebase update triggered (dry hourly interval)...");
+
     String timestamp = getModemTime();
-    float waterDepth = getWaterLevelCM();
-    if (waterDepth < 0) waterDepth = 0.0;
-    
-    if (sendToFirebase(timestamp, totalRainfall, waterDepth)) {
+    SensorSnapshot snapshot =
+        captureSnapshot(timestamp, rainingNow ? "periodic_wet" : "periodic_dry_hourly");
+
+    if (sendToFirebase(snapshot)) {
       DEBUG_PRINTLN("Periodic data sent to Firebase");
       lastFirebaseSend = now;
     } else {
       DEBUG_PRINTLN("Failed to send periodic data");
-      lastFirebaseSend = now - FIREBASE_SEND_INTERVAL + 60000UL; // Retry 1 min
+      lastFirebaseSend = now - periodicIntervalMs + Config::FIREBASE_RETRY_DELAY_MS;
     }
   }
 
-  // --- AUTO-HIBERNATION HANDLER ---
-  if (millis() - bootTime >= ACTIVE_DURATION_MS) {
+  if (millis() - bootTime >= Config::ACTIVE_DURATION_MS) {
     DEBUG_PRINTLN("\n Active window elapsed (2 hours). Preparing for hibernation...");
-    detachInterrupt(digitalPinToInterrupt(TIP_PIN));
+    detachInterrupt(digitalPinToInterrupt(Config::TIP_PIN));
     enterHibernation();
   }
 

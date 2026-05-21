@@ -2,11 +2,9 @@
 #define ULTRASONIC_H
 
 #include <Arduino.h>
+#include "../domain/telemetry.h"
 
 void initUltrasonic();
-float getDistanceCM_refined();
-float getWaterLevelCM();
-float getWaterPercent();
-String getWaterLabel();
+UltrasonicReading readUltrasonic();
 
 #endif
