@@ -111,9 +111,6 @@ UltrasonicReading readUltrasonic() {
 
   float depth = Config::ULTRASONIC_EMPTY_DISTANCE_CM - smooth;
   if (depth < 0) depth = 0;
-  if (depth > Config::ULTRASONIC_MAX_WATER_LEVEL_CM) {
-    depth = Config::ULTRASONIC_MAX_WATER_LEVEL_CM;
-  }
 
   reading.filteredDistanceCm = smooth;
   reading.waterLevelCm = depth;

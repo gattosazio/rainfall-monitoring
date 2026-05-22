@@ -68,12 +68,12 @@ void loop() {
     DEBUG_PRINTLN("\n--- Reading Sensors at " + timestamp + " ---");
 
     if (ultrasonicReading.rawDistanceCm > 0) {
-      Serial.printf("Raw Ultrasonic Distance: %.1f cm\n", ultrasonicReading.rawDistanceCm);
-      Serial.printf("Median Ultrasonic Distance: %.1f cm\n",
-                    ultrasonicReading.medianRawDistanceCm);
+      DEBUG_PRINTF("Raw Ultrasonic Distance: %.1f cm\n", ultrasonicReading.rawDistanceCm);
+      DEBUG_PRINTF("Median Ultrasonic Distance: %.1f cm\n",
+                   ultrasonicReading.medianRawDistanceCm);
     } else {
-      Serial.println("Raw Ultrasonic Distance: INVALID");
-      Serial.println("Median Ultrasonic Distance: INVALID");
+      DEBUG_PRINTLN("Raw Ultrasonic Distance: INVALID");
+      DEBUG_PRINTLN("Median Ultrasonic Distance: INVALID");
     }
 
     DEBUG_PRINTF("Water Depth: %.1f cm\n", ultrasonicReading.waterLevelCm);
