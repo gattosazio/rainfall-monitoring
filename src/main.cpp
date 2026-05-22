@@ -7,13 +7,17 @@
 #include "hibernation/hibernation.h"
 #include "loggers/loggers.h"
 #include "domain/config.h"
+#include "domain/scheduler.h"
 #include "domain/telemetry.h"
 
 unsigned long lastSensorRead = 0;
 unsigned long lastFirebaseSend = 0;
 unsigned long bootTime = 0;
+unsigned long dryWindowStart = 0;
+unsigned long lastRainEventAttempt = 0;
 
 unsigned long lastSentTipCount = 0;
+bool wasRainingLastLoop = false;
 
 SensorSnapshot captureSnapshot(const String& timestamp, const String& sendReason) {
   SensorSnapshot snapshot;
@@ -24,10 +28,9 @@ SensorSnapshot captureSnapshot(const String& timestamp, const String& sendReason
   return snapshot;
 }
 
-unsigned long getPeriodicFirebaseIntervalMs() {
-  RainGaugeReading rainReading = getRainGaugeReading();
-  return rainReading.isRaining ? Config::FIREBASE_WET_INTERVAL_MS
-                               : Config::FIREBASE_DRY_INTERVAL_MS;
+bool isDryUploadWindowActive(unsigned long now) {
+  return dryWindowStart > 0 &&
+         (now - dryWindowStart) <= Config::FIREBASE_DRY_UPLOAD_WINDOW_MS;
 }
 
 void setup() {
@@ -53,17 +56,35 @@ void setup() {
   DEBUG_PRINTLN("Modem clock synchronized: " + currentTime);
   delay(2000);
 
-  DEBUG_PRINTLN("System is now active for 2 hours before hibernation.\n");
+  SensorSnapshot bootSnapshot = captureSnapshot(currentTime, "heartbeat_boot");
+  if (sendToFirebase(bootSnapshot)) {
+    DEBUG_PRINTLN("Boot heartbeat sent to Firebase");
+    lastFirebaseSend = millis();
+  } else {
+    DEBUG_PRINTLN("Failed to send boot heartbeat");
+  }
+
+  DEBUG_PRINTLN("System is now running with hibernation disabled.\n");
 }
 
 void loop() {
   unsigned long now = millis();
 
   updateRainfall();
+  RainGaugeReading currentRainReading = getRainGaugeReading();
+  bool rainingNow = currentRainReading.isRaining;
+
+  if (wasRainingLastLoop && !rainingNow && dryWindowStart == 0) {
+    dryWindowStart = now;
+    DEBUG_PRINTLN("Rain window ended. Starting 2-hour dry upload window.");
+  } else if (rainingNow) {
+    dryWindowStart = 0;
+  }
+
+  wasRainingLastLoop = rainingNow;
 
   if (now - lastSensorRead >= Config::SENSOR_READ_INTERVAL_MS) {
     String timestamp = getModemTime();
-    RainGaugeReading rainReading = getRainGaugeReading();
     UltrasonicReading ultrasonicReading = readUltrasonic();
     DEBUG_PRINTLN("\n--- Reading Sensors at " + timestamp + " ---");
 
@@ -77,14 +98,16 @@ void loop() {
     }
 
     DEBUG_PRINTF("Water Depth: %.1f cm\n", ultrasonicReading.waterLevelCm);
-    DEBUG_PRINTF("Total Rainfall: %.2f mm\n", rainReading.totalRainfallMm);
-    DEBUG_PRINTF("Rainfall Rate: %.2f mm/hr\n", rainReading.rainRateMmPerHour);
+    DEBUG_PRINTF("Total Rainfall: %.2f mm\n", currentRainReading.totalRainfallMm);
+    DEBUG_PRINTF("Rainfall Rate: %.2f mm/hr\n", currentRainReading.rainRateMmPerHour);
 
     lastSensorRead = now;
   }
 
   unsigned long localTipCount = getRainGaugeTipCount();
-  if (localTipCount > lastSentTipCount) {
+  if (localTipCount > lastSentTipCount &&
+      now - lastRainEventAttempt >= Config::FIREBASE_RAIN_EVENT_RETRY_MS) {
+    lastRainEventAttempt = now;
     String eventTime = getModemTime();
     SensorSnapshot snapshot = captureSnapshot(eventTime, "rain_event");
 
@@ -97,23 +120,23 @@ void loop() {
     }
   }
 
-  unsigned long periodicIntervalMs = getPeriodicFirebaseIntervalMs();
-  if (now - lastFirebaseSend >= periodicIntervalMs) {
-    bool rainingNow = periodicIntervalMs == Config::FIREBASE_WET_INTERVAL_MS;
-    DEBUG_PRINTLN(rainingNow
-                      ? "\n Periodic Firebase update triggered (wet interval)..."
-                      : "\n Periodic Firebase update triggered (dry hourly interval)...");
+  bool dryWindowActive = isDryUploadWindowActive(now);
+  PeriodicScheduleDecision periodicDecision =
+      getPeriodicScheduleDecision(rainingNow, dryWindowActive);
+
+  if (periodicDecision.shouldSend &&
+      now - lastFirebaseSend >= periodicDecision.intervalMs) {
+    DEBUG_PRINTLN(periodicDecision.debugMessage);
 
     String timestamp = getModemTime();
-    SensorSnapshot snapshot =
-        captureSnapshot(timestamp, rainingNow ? "periodic_wet" : "periodic_dry_hourly");
+    SensorSnapshot snapshot = captureSnapshot(timestamp, periodicDecision.sendReason);
 
     if (sendToFirebase(snapshot)) {
       DEBUG_PRINTLN("Periodic data sent to Firebase");
       lastFirebaseSend = now;
     } else {
       DEBUG_PRINTLN("Failed to send periodic data");
-      lastFirebaseSend = now - periodicIntervalMs + Config::FIREBASE_RETRY_DELAY_MS;
+      lastFirebaseSend = now - periodicDecision.intervalMs + Config::FIREBASE_RETRY_DELAY_MS;
     }
   }
 
