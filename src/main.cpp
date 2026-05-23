@@ -40,11 +40,13 @@ void setup() {
   SerialBT.begin("node2_debug");
   delay(1000);
 
+  DEBUG_PRINTLN(String("[INFO] Firmware version: ") + Config::FIRMWARE_VERSION);
+
   bootTime = millis();
 
   initRainGauge();
   initUltrasonic();
-  DEBUG_PRINTLN("Sensors initialized.");
+  DEBUG_PRINTLN("Sensors are initialized.");
 
   initLoggers();
 
