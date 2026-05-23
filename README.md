@@ -262,6 +262,44 @@ Monitor:
 - APN is set in `src/modem/modem.cpp`
 - Firebase REST target is set in `src/domain/config.h`
 
+### OTA (Cellular)
+
+This firmware can perform "real OTA" over the cellular modem (download a new `firmware.bin` and flash it).
+
+1. Build a firmware binary: PlatformIO produces `.pio/build/esp-wrover-kit/firmware.bin`
+2. Host `firmware.bin` on an HTTPS URL (any static host)
+3. Host a small JSON manifest (example below) on an HTTPS URL
+4. Set these in `src/domain/config.h`:
+   - `Config::OTA_ENABLED = true`
+   - `Config::OTA_MANIFEST_URL = "<your manifest url>"`
+   - `Config::FIRMWARE_VERSION = "<current version>"`
+
+Manifest example:
+
+```json
+{
+  "version": "2026.05.23-1",
+  "url": "https://example.com/firmware.bin",
+  "size": 1160000,
+  "sha256": "64-hex-chars"
+}
+```
+
+#### CI/CD (GitHub Pages)
+
+This repo includes a workflow that builds the firmware and publishes OTA files to GitHub Pages automatically on every push to `main` (or manual run).
+
+- Workflow: `.github/workflows/ota-pages.yml`
+- Published files:
+  - `/ota/firmware.bin`
+  - `/ota/manifest.json`
+
+After you enable GitHub Pages for this repo (Settings → Pages → Source: GitHub Actions), your manifest URL will be:
+
+```text
+https://<owner>.github.io/<repo>/ota/manifest.json
+```
+
 ## Maintenance Guidelines
 
 - if site geometry changes, update ultrasonic calibration constants first

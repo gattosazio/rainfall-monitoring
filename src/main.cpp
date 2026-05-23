@@ -6,6 +6,7 @@
 #include "firebase/firebase.h"
 #include "hibernation/hibernation.h"
 #include "loggers/loggers.h"
+#include "ota/ota.h"
 #include "domain/config.h"
 #include "domain/scheduler.h"
 #include "domain/telemetry.h"
@@ -49,8 +50,25 @@ void setup() {
   powerOnModem();
   SerialAT.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
   delay(1500);
-  connectNetwork();
+  bool networkOk = false;
+  for (int attempt = 1; attempt <= 12; ++attempt) {
+    DEBUG_PRINTF("[DEBUG] Network bring-up attempt %d/12\n", attempt);
+    if (connectNetwork()) {
+      networkOk = true;
+      break;
+    }
+    DEBUG_PRINTLN("[WARN] connectNetwork failed; retrying in 5s...");
+    delay(5000);
+  }
+  if (!networkOk) {
+    DEBUG_PRINTLN("[ERROR] Network bring-up failed; continuing without data.");
+  }
   delay(1000);
+
+  if (networkOk && Config::OTA_ENABLED) {
+    delay(Config::OTA_CHECK_DELAY_MS);
+    otaCheckAndUpdate();
+  }
 
   String currentTime = getModemTime();
   DEBUG_PRINTLN("Modem clock synchronized: " + currentTime);
