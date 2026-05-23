@@ -51,7 +51,7 @@ constexpr char OTA_MANIFEST_URL[] = "https://gattosazio.github.io/rainfall-monit
 #ifdef FIRMWARE_VERSION_STR
 constexpr char FIRMWARE_VERSION[] = FIRMWARE_VERSION_STR;
 #else
-constexpr char FIRMWARE_VERSION[] = "0.0.1";
+constexpr char FIRMWARE_VERSION[] = "0.0.2";
 #endif
 
 constexpr unsigned long OTA_CHECK_DELAY_MS = 5000UL;
