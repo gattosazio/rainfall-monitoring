@@ -6,6 +6,7 @@
 #include "firebase/firebase.h"
 #include "hibernation/hibernation.h"
 #include "loggers/loggers.h"
+#include "ota/ota.h"
 #include "domain/config.h"
 #include "domain/scheduler.h"
 #include "domain/telemetry.h"
@@ -63,6 +64,11 @@ void setup() {
     DEBUG_PRINTLN("[ERROR] Network bring-up failed; continuing without data.");
   }
   delay(1000);
+
+  if (networkOk && Config::OTA_ENABLED) {
+    delay(Config::OTA_CHECK_DELAY_MS);
+    otaCheckAndUpdate();
+  }
 
   String currentTime = getModemTime();
   DEBUG_PRINTLN("Modem clock synchronized: " + currentTime);
