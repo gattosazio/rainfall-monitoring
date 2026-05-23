@@ -5,6 +5,30 @@ namespace Config {
 constexpr char FIREBASE_URL[] =
     "https://lte-test2-default-rtdb.asia-southeast1.firebasedatabase.app/Node2.json";
 
+// ---- OTA (Cellular) ----
+// When enabled, the device will fetch a small JSON manifest over the modem and
+// (if newer) download a firmware .bin and flash it using ESP32's OTA slots.
+//
+// Manifest format (example):
+// {
+//   "version": "2026.05.23-1",
+//   "url": "https://example.com/firmware.bin",
+//   "size": 1160000,
+//   "sha256": "hexstring..."
+// }
+constexpr bool OTA_ENABLED = true;
+constexpr char OTA_MANIFEST_URL[] = "";
+
+// CI/CD can override this at build time via -DFIRMWARE_VERSION_STR="..."
+#ifdef FIRMWARE_VERSION_STR
+constexpr char FIRMWARE_VERSION[] = FIRMWARE_VERSION_STR;
+#else
+constexpr char FIRMWARE_VERSION[] = "0.0.0";
+#endif
+
+constexpr unsigned long OTA_CHECK_DELAY_MS = 5000UL;
+constexpr unsigned long OTA_HTTPREAD_CHUNK_BYTES = 1024UL;
+
 constexpr unsigned long SENSOR_READ_INTERVAL_MS = 3000UL;
 constexpr unsigned long FIREBASE_WET_INTERVAL_MS = 180000UL;
 constexpr unsigned long FIREBASE_DRY_INTERVAL_MS = 3600000UL;

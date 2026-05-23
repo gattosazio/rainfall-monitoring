@@ -1,0 +1,63 @@
+name: OTA (Build + Publish)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PlatformIO
+        run: pip install -U platformio
+
+      - name: Build firmware (with version)
+        env:
+          FW_VERSION: ${{ github.run_number }}-${{ github.sha }}
+        run: |
+          pio run -e esp-wrover-kit --project-option "build_flags=-DFIRMWARE_VERSION_STR=\\\"${FW_VERSION}\\\""
+          echo "FW_VERSION=${FW_VERSION}" >> $GITHUB_ENV
+
+      - name: Prepare OTA files
+        env:
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          mkdir -p site/ota
+          cp .pio/build/esp-wrover-kit/firmware.bin site/ota/firmware.bin
+          python scripts/generate_ota_manifest.py \
+            --firmware site/ota/firmware.bin \
+            --version "${FW_VERSION}" \
+            --url "https://${OWNER}.github.io/${REPO}/ota/firmware.bin" \
+            --out site/ota/manifest.json
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
