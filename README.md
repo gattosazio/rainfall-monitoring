@@ -262,6 +262,40 @@ Monitor:
 - APN is set in `src/modem/modem.cpp`
 - Firebase REST target is set in `src/domain/config.h`
 
+#### Production (Locked Rules + Auth)
+
+For production, this project supports **locked Firebase Realtime Database rules** by signing in with an Email/Password user and attaching an `auth=` token to every request.
+
+1. Firebase Console → **Authentication** → enable **Email/Password**
+2. Create a dedicated user (example: `device-node2@...`)
+3. Create `include/secrets.private.h` (git-ignored) with your credentials
+
+Template: `include/secrets.example.h`
+
+Example `include/secrets.private.h`:
+
+```cpp
+#pragma once
+namespace Secrets {
+constexpr const char* FIREBASE_API_KEY = "AIza....";
+constexpr const char* FIREBASE_AUTH_EMAIL = "device-node2@gmail.com";
+constexpr const char* FIREBASE_AUTH_PASSWORD = "your_password";
+}
+```
+
+Example RTDB rules (lock everything):
+
+```json
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null"
+  }
+}
+```
+
+Note: if rules are locked, both the device and any admin tools must sign in to read/write.
+
 ### OTA (Cellular)
 
 This firmware can perform "real OTA" over the cellular modem (download a new `firmware.bin` and flash it).
@@ -299,6 +333,22 @@ After you enable GitHub Pages for this repo (Settings → Pages → Source: GitH
 ```text
 https://<owner>.github.io/<repo>/ota/manifest.json
 ```
+
+#### Remote OTA Command (Firebase)
+
+The firmware can also check for an OTA update when you flip a "remote button" in Firebase:
+
+- Command path: `commands/Node2/ota_check` (boolean)
+- The device polls this path every `Config::OTA_COMMAND_POLL_INTERVAL_MS`
+- When it sees `true`, it clears it back to `false` and runs an OTA check
+
+This repo also publishes a simple admin page (GitHub Pages) at:
+
+```text
+https://<owner>.github.io/<repo>/admin/
+```
+
+Edit `admin/index.html` to set your `firebaseConfig`, then sign in and click **Update Node2**.
 
 ## Maintenance Guidelines
 

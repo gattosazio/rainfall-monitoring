@@ -1,14 +1,18 @@
 #pragma once
 
-// Local secrets for Firebase authenticated writes.
-// This file is git-ignored on purpose (`include/secrets.h`).
+// This repo keeps secrets out of source control.
 //
-// Fill these in:
-// - FIREBASE_API_KEY: Firebase Console -> Project settings -> General -> Web API Key
-// - FIREBASE_AUTH_EMAIL / FIREBASE_AUTH_PASSWORD: create a dedicated Auth user (Email/Password)
+// Put your real credentials in `include/secrets.private.h` (git-ignored),
+// or leave it missing to build without authenticated Firebase access.
+//
+// Template: `include/secrets.example.h`
 
+#if defined(__has_include) && __has_include("secrets.private.h")
+#  include "secrets.private.h"
+#else
 namespace Secrets {
 constexpr const char* FIREBASE_API_KEY = "AIzaSyCzhyQ2pux9yH5pJU7d8wWVFldaDebg80E";
-constexpr const char* FIREBASE_AUTH_EMAIL = "device-node2@gmail.com";
-constexpr const char* FIREBASE_AUTH_PASSWORD = "node2admin12345";
-}
+constexpr const char* FIREBASE_AUTH_EMAIL = "admin@gmail.com";
+constexpr const char* FIREBASE_AUTH_PASSWORD = "adminmonitoring12345";
+}  // namespace Secrets
+#endif

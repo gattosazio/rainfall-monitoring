@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rainfall Monitoring Admin</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; max-width: 720px; margin: 24px auto; padding: 0 16px; }
+      .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 16px 0; }
+      label { display: block; margin: 10px 0 6px; }
+      input { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #ccc; }
+      button { padding: 10px 14px; border-radius: 10px; border: 0; cursor: pointer; background: #111; color: #fff; }
+      button.secondary { background: #555; }
+      .row { display: flex; gap: 10px; flex-wrap: wrap; }
+      .row > * { flex: 1; }
+      code { background: #f6f6f6; padding: 2px 6px; border-radius: 6px; }
+      #status { white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    </style>
+  </head>
+  <body>
+    <h1>Admin</h1>
+    <p>This page lets you trigger a remote OTA check by writing to Firebase Realtime Database.</p>
+
+    <div class="card">
+      <h2>Setup (one-time)</h2>
+      <p>Edit <code>admin/index.html</code> and fill in <code>firebaseConfig</code> below.</p>
+    </div>
+
+    <div class="card">
+      <h2>Sign in</h2>
+      <div class="row">
+        <div>
+          <label for="email">Email</label>
+          <input id="email" type="email" placeholder="admin@example.com" />
+        </div>
+        <div>
+          <label for="password">Password</label>
+          <input id="password" type="password" placeholder="••••••••" />
+        </div>
+      </div>
+      <div style="margin-top: 12px" class="row">
+        <button id="btnSignIn">Sign in</button>
+        <button id="btnSignOut" class="secondary">Sign out</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>OTA</h2>
+      <p>Clicking the button sets <code>commands/Node2/ota_check</code> to <code>true</code>.</p>
+      <button id="btnUpdate">Update Node2</button>
+    </div>
+
+    <div class="card">
+      <h2>Status</h2>
+      <div id="status">Not signed in.</div>
+    </div>
+
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+      import {
+        getAuth,
+        onAuthStateChanged,
+        signInWithEmailAndPassword,
+        signOut,
+      } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+      import { getDatabase, ref, set, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js";
+
+      // TODO: Fill this in from Firebase Console -> Project settings -> General -> Your apps (Web).
+      const firebaseConfig = {
+        apiKey: "AIzaSyCzhyQ2pux9yH5pJU7d8wWVFldaDebg80E",
+        authDomain: "lte-test2.firebaseapp.com",
+        databaseURL: "https://lte-test2-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "lte-test2",
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getDatabase(app);
+
+      const statusEl = document.getElementById("status");
+      const emailEl = document.getElementById("email");
+      const passEl = document.getElementById("password");
+
+      function setStatus(msg) {
+        statusEl.textContent = msg;
+      }
+
+      onAuthStateChanged(auth, (user) => {
+        if (user) setStatus(`Signed in as: ${user.email}\nUID: ${user.uid}`);
+        else setStatus("Not signed in.");
+      });
+
+      document.getElementById("btnSignIn").addEventListener("click", async () => {
+        try {
+          setStatus("Signing in...");
+          await signInWithEmailAndPassword(auth, emailEl.value.trim(), passEl.value);
+          setStatus("Signed in.");
+        } catch (e) {
+          setStatus(`Sign-in failed:\n${e?.message ?? e}`);
+        }
+      });
+
+      document.getElementById("btnSignOut").addEventListener("click", async () => {
+        try {
+          await signOut(auth);
+          setStatus("Signed out.");
+        } catch (e) {
+          setStatus(`Sign-out failed:\n${e?.message ?? e}`);
+        }
+      });
+
+      document.getElementById("btnUpdate").addEventListener("click", async () => {
+        try {
+          if (!auth.currentUser) {
+            setStatus("Please sign in first.");
+            return;
+          }
+          setStatus("Sending command...");
+          await set(ref(db, "commands/Node2/ota_check"), true);
+          await set(ref(db, "commands/Node2/ota_requested_at"), serverTimestamp());
+          setStatus("Command sent: ota_check=true");
+        } catch (e) {
+          setStatus(`Command failed:\n${e?.message ?? e}`);
+        }
+      });
+    </script>
+  </body>
+</html>
+

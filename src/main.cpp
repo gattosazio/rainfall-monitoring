@@ -16,6 +16,7 @@ unsigned long lastFirebaseSend = 0;
 unsigned long bootTime = 0;
 unsigned long dryWindowStart = 0;
 unsigned long lastRainEventAttempt = 0;
+unsigned long lastOtaCommandPoll = 0;
 
 unsigned long lastSentTipCount = 0;
 bool wasRainingLastLoop = false;
@@ -155,6 +156,17 @@ void loop() {
     } else {
       DEBUG_PRINTLN("Failed to send periodic data");
       lastFirebaseSend = now - periodicDecision.intervalMs + Config::FIREBASE_RETRY_DELAY_MS;
+    }
+  }
+
+  if (Config::OTA_ENABLED &&
+      (lastOtaCommandPoll == 0 ||
+       now - lastOtaCommandPoll >= Config::OTA_COMMAND_POLL_INTERVAL_MS)) {
+    lastOtaCommandPoll = now;
+    bool requested = false;
+    if (firebaseConsumeOtaCheckCommand(requested) && requested) {
+      DEBUG_PRINTLN("[OTA] Remote update requested (Firebase command).");
+      otaCheckAndUpdate();
     }
   }
 
