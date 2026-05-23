@@ -37,6 +37,7 @@ jobs:
           FW_VERSION: ${{ github.run_number }}-${{ github.sha }}
         run: |
           export FIRMWARE_VERSION_BUILD_FLAG="-DFIRMWARE_VERSION_STR=\\\"${FW_VERSION}\\\""
+          export OTA_BUILD_FLAGS="-DOTA_ENABLED_VALUE=1 -DOTA_MANIFEST_URL_STR=\\\"https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/ota/manifest.json\\\""
           pio run -e esp-wrover-kit
           echo "FW_VERSION=${FW_VERSION}" >> $GITHUB_ENV
 
@@ -52,6 +53,12 @@ jobs:
             --version "${FW_VERSION}" \
             --url "https://${OWNER}.github.io/${REPO}/ota/firmware.bin" \
             --out site/ota/manifest.json
+
+          # Optional static admin page (for triggering OTA commands).
+          if [ -d admin ]; then
+            mkdir -p site/admin
+            cp -R admin/* site/admin/
+          fi
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
