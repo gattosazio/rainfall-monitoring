@@ -36,7 +36,8 @@ jobs:
         env:
           FW_VERSION: ${{ github.run_number }}-${{ github.sha }}
         run: |
-          pio run -e esp-wrover-kit --project-option "build_flags=-DFIRMWARE_VERSION_STR=\\\"${FW_VERSION}\\\""
+          export FIRMWARE_VERSION_BUILD_FLAG="-DFIRMWARE_VERSION_STR=\\\"${FW_VERSION}\\\""
+          pio run -e esp-wrover-kit
           echo "FW_VERSION=${FW_VERSION}" >> $GITHUB_ENV
 
       - name: Prepare OTA files
