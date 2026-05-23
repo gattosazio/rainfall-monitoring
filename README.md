@@ -7,7 +7,7 @@ This refactor reviewed the existing ESP32 + modem flood/rainfall monitor and cha
 - cleaner sensor acquisition flow
 - raw + processed sensor telemetry
 - removal of water status labels
-- hourly dry-weather uploads
+- 3-hour dry heartbeat uploads plus a 5-minute 2-hour post-rain window
 - hibernation can be disabled for continuous monitoring
 - documented calibration constants
 
@@ -61,7 +61,7 @@ This refactor reviewed the existing ESP32 + modem flood/rainfall monitor and cha
 4. Refactor ultrasonic module to return one structured reading with raw pulse, raw distance, filtered distance, and water level.
 5. Change Firebase upload to accept one snapshot object and serialize nested JSON with ArduinoJson.
 6. Remove all water level status labels and keep only raw + processed telemetry.
-7. Keep periodic uploads while dry, but reduce them to hourly and keep rainy-period uploads at 3 minutes.
+7. Keep rain-event uploads immediate, send rainy-period uploads every 5 minutes, continue dry uploads every 5 minutes for 2 hours after rain stops, and send dry heartbeat uploads every 3 hours outside that window.
 8. Document setup, calibration, Firebase schema, and maintenance in this README.
 
 ## What Changed
@@ -79,24 +79,26 @@ This refactor reviewed the existing ESP32 + modem flood/rainfall monitor and cha
 ### Behavior
 
 - rain events still upload immediately
-- wet periods still upload every 3 minutes
-- dry periods now upload every 1 hour
+- firmware sends one heartbeat snapshot after boot
+- wet periods still upload every 5 minutes
+- dry periods now upload every 5 minutes for 2 hours after rain stops
+- outside the post-rain dry window, dry heartbeat uploads send every 3 hours
 - every upload now contains raw and processed rain gauge data
 - every upload now contains raw and processed ultrasonic data
-- water warning labels are removed from code and payload
-- GPS is removed from the active firmware payload for static-node deployment
-- hibernation is currently disabled in firmware, so the node stays awake beyond the old 2-hour limit
+- hibernation is disabled, so the node stays awake continuously
 
 ## New System Flow
 
 1. boot sensors, modem, SPIFFS
-2. loop updates rainfall counters
-3. periodic local sensor read prints debug values
-4. rain tip event sends immediate snapshot
-5. periodic uploader sends:
-   - every 3 min when rain is active in the rolling window
-   - every 1 hour when dry
-6. hibernation still starts after 2 hours active time
+2. send one boot heartbeat snapshot after modem time is ready
+3. loop updates rainfall counters
+4. periodic local sensor read prints debug values
+5. rain tip event sends immediate snapshot
+6. periodic uploader sends:
+   - every 5 min when rain is active in the rolling 10-minute window
+   - every 5 min for 2 hours after that rain window ends
+   - every 3 hours while dry outside that 2-hour post-rain window
+
 
 ## Calibration
 
@@ -163,7 +165,7 @@ Field calibration process:
 6. if needed, fine-tune the empty distance constant
 
 Depth formula:
-
+ 
 ```text
 water_level_cm = ultrasonic_empty_distance_cm - filtered_distance_cm
 ```
@@ -172,7 +174,7 @@ water_level_cm = ultrasonic_empty_distance_cm - filtered_distance_cm
 
 Current endpoint:
 
-- `Node1.json`
+- `Node2.json`
 
 Current payload shape:
 
@@ -215,8 +217,10 @@ Current payload shape:
 Send reasons:
 
 - `rain_event`
+- `heartbeat_boot`
+- `heartbeat_dry`
 - `periodic_wet`
-- `periodic_dry_hourly`
+- `periodic_dry_window`
 
 Raw vs processed split:
 

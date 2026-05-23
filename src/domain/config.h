@@ -3,11 +3,14 @@
 
 namespace Config {
 constexpr char FIREBASE_URL[] =
-    "https://lte-test2-default-rtdb.asia-southeast1.firebasedatabase.app/Node2.json";
+    "https://lte-test2-default-rtdb.asia-southeast1.firebasedatabase.app/Node1.json";
 
 constexpr unsigned long SENSOR_READ_INTERVAL_MS = 3000UL;
-constexpr unsigned long FIREBASE_WET_INTERVAL_MS = 180000UL;
-constexpr unsigned long FIREBASE_DRY_INTERVAL_MS = 3600000UL;
+constexpr unsigned long FIREBASE_WET_INTERVAL_MS = 300000UL;
+constexpr unsigned long FIREBASE_DRY_INTERVAL_MS = 300000UL;
+constexpr unsigned long FIREBASE_DRY_UPLOAD_WINDOW_MS = 7200000UL;
+constexpr unsigned long FIREBASE_HEARTBEAT_INTERVAL_MS = 10800000UL;
+constexpr unsigned long FIREBASE_RAIN_EVENT_RETRY_MS = 60000UL;
 constexpr unsigned long FIREBASE_RETRY_DELAY_MS = 60000UL;
 constexpr unsigned long ACTIVE_DURATION_MS = 7200000UL;
 constexpr bool HIBERNATION_ENABLED = false;
