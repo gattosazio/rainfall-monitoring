@@ -32,7 +32,7 @@ unsigned long getPeriodicFirebaseIntervalMs() {
 
 void setup() {
   Serial.begin(115200);
-  SerialBT.begin("LILYGO_Debug");
+  SerialBT.begin("node2_debug");
   delay(1000);
 
   bootTime = millis();
