@@ -46,7 +46,7 @@ void setup() {
 
   initRainGauge();
   initUltrasonic();
-  DEBUG_PRINTLN("Sensors are initialized.");
+  DEBUG_PRINTLN("Sensors initialized.");
 
   initLoggers();
 
