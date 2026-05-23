@@ -46,7 +46,19 @@ void setup() {
   powerOnModem();
   SerialAT.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
   delay(1500);
-  connectNetwork();
+  bool networkOk = false;
+  for (int attempt = 1; attempt <= 12; ++attempt) {
+    DEBUG_PRINTF("[DEBUG] Network bring-up attempt %d/12\n", attempt);
+    if (connectNetwork()) {
+      networkOk = true;
+      break;
+    }
+    DEBUG_PRINTLN("[WARN] connectNetwork failed; retrying in 5s...");
+    delay(5000);
+  }
+  if (!networkOk) {
+    DEBUG_PRINTLN("[ERROR] Network bring-up failed; continuing without data.");
+  }
   delay(1000);
 
   String currentTime = getModemTime();
@@ -68,12 +80,12 @@ void loop() {
     DEBUG_PRINTLN("\n--- Reading Sensors at " + timestamp + " ---");
 
     if (ultrasonicReading.rawDistanceCm > 0) {
-      Serial.printf("Raw Ultrasonic Distance: %.1f cm\n", ultrasonicReading.rawDistanceCm);
-      Serial.printf("Median Ultrasonic Distance: %.1f cm\n",
-                    ultrasonicReading.medianRawDistanceCm);
+      DEBUG_PRINTF("Raw Ultrasonic Distance: %.1f cm\n", ultrasonicReading.rawDistanceCm);
+      DEBUG_PRINTF("Median Ultrasonic Distance: %.1f cm\n",
+                   ultrasonicReading.medianRawDistanceCm);
     } else {
-      Serial.println("Raw Ultrasonic Distance: INVALID");
-      Serial.println("Median Ultrasonic Distance: INVALID");
+      DEBUG_PRINTLN("Raw Ultrasonic Distance: INVALID");
+      DEBUG_PRINTLN("Median Ultrasonic Distance: INVALID");
     }
 
     DEBUG_PRINTF("Water Depth: %.1f cm\n", ultrasonicReading.waterLevelCm);
