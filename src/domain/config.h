@@ -16,6 +16,9 @@ constexpr unsigned long ACTIVE_DURATION_MS = 7200000UL;
 constexpr bool HIBERNATION_ENABLED = false;
 
 constexpr unsigned int FIREBASE_HTTP_RETRIES = 3;
+// If a Firebase send fails repeatedly across multiple send cycles, reboot device.
+constexpr bool FIREBASE_REBOOT_ON_PERSISTENT_FAIL = true;
+constexpr unsigned int FIREBASE_PERSISTENT_FAIL_REBOOT_COUNT = 5;
 
 constexpr float RAIN_MM_PER_TIP = 0.70f;
 constexpr unsigned long RAIN_DEBOUNCE_MS = 500UL;

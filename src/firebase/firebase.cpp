@@ -41,15 +41,44 @@ String buildPayload(const SensorSnapshot& snapshot) {
   return payload;
 }
 
-bool postPayload(const String& payload) {
-  sendATCommand("AT+CGACT=0,1", 5000);
-  delay(1000);
+enum class RecoveryStage {
+  None = 0,
+  HttpReset = 1,
+  ReattachData = 2,
+};
+
+void ensureDataOn() {
+  sendATCommand("AT+CGATT=1", 5000);
+  delay(300);
   sendATCommand("AT+CGACT=1,1", 5000);
-  delay(1000);
-  sendATCommand("AT+HTTPTERM", 2000);
-  delay(1000);
-  sendATCommand("AT+HTTPINIT", 5000);
-  delay(1000);
+  delay(800);
+}
+
+bool ensureHttpReady(RecoveryStage stage) {
+  if (stage == RecoveryStage::ReattachData) {
+    DEBUG_PRINTLN("[FIREBASE] Recovery: Reconnecting mobile data...");
+    ensureDataOn();
+  }
+
+  if (stage == RecoveryStage::HttpReset || stage == RecoveryStage::ReattachData) {
+    DEBUG_PRINTLN("[FIREBASE] Recovery: Resetting HTTP service...");
+    sendATCommand("AT+HTTPTERM", 2000);
+    delay(300);
+  }
+
+  // Always ensure HTTP is initialized before a request.
+  String initResp = sendATCommandWithResponse("AT+HTTPINIT", 5000);
+  if (initResp.indexOf("OK") < 0) {
+    DEBUG_PRINTLN("[FIREBASE] HTTPINIT failed");
+    return false;
+  }
+  delay(300);
+  return true;
+}
+
+bool postPayloadOnce(const String& payload, RecoveryStage stage) {
+  // Keep mobile data ON by default. Only do recovery steps if we had failures.
+  if (!ensureHttpReady(stage)) return false;
 
   sendATCommand("AT+HTTPPARA=\"CID\",1", 2000);
   sendATCommand("AT+HTTPSSL=1", 2000);
@@ -59,16 +88,15 @@ bool postPayload(const String& payload) {
 
   String dataCmd = "AT+HTTPDATA=" + String(payload.length()) + ",30000";
   SerialAT.println(dataCmd);
-  delay(2000);
 
-  if (!waitForPrompt("DOWNLOAD", 10000)) {
+  if (!waitForPrompt("DOWNLOAD", 20000)) {
     DEBUG_PRINTLN("[ERROR] DOWNLOAD prompt timeout");
     sendATCommand("AT+HTTPTERM", 2000);
     return false;
   }
 
-  SerialAT.println(payload);
-  delay(3000);
+  SerialAT.print(payload);
+  delay(1000);
   sendATCommand("AT+HTTPACTION=1", 1000);
 
   unsigned long start = millis();
@@ -97,13 +125,29 @@ bool sendToFirebase(const SensorSnapshot& snapshot) {
   String payload = buildPayload(snapshot);
   DEBUG_PRINTLN("[DEBUG] Payload: " + payload);
 
+  static unsigned int persistentFailCount = 0;
+
   for (unsigned int attempt = 1; attempt <= Config::FIREBASE_HTTP_RETRIES; ++attempt) {
-    if (postPayload(payload)) {
+    RecoveryStage stage = RecoveryStage::None;
+    if (attempt == 2) stage = RecoveryStage::HttpReset;
+    if (attempt >= 3) stage = RecoveryStage::ReattachData;
+
+    if (postPayloadOnce(payload, stage)) {
       DEBUG_PRINTF("[DEBUG] Firebase response check: SUCCESS on attempt %u\n", attempt);
+      persistentFailCount = 0;
       return true;
     }
     DEBUG_PRINTF("[DEBUG] Firebase response check: FAILED on attempt %u\n", attempt);
     delay(2000);
+  }
+
+  persistentFailCount++;
+  DEBUG_PRINTF("[WARN] Firebase persistent failures: %u\n", persistentFailCount);
+  if (Config::FIREBASE_REBOOT_ON_PERSISTENT_FAIL &&
+      persistentFailCount >= Config::FIREBASE_PERSISTENT_FAIL_REBOOT_COUNT) {
+    DEBUG_PRINTLN("[ERROR] Too many Firebase failures. Rebooting device...");
+    delay(1000);
+    ESP.restart();
   }
 
   return false;
