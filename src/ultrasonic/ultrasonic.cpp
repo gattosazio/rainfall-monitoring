@@ -110,6 +110,8 @@ UltrasonicReading readUltrasonic() {
            (1.0f - Config::ULTRASONIC_SMOOTHING_ALPHA) * smooth;
 
   float depth = Config::ULTRASONIC_EMPTY_DISTANCE_CM - smooth;
+  // Apply tolerance around "empty" so an empty canal reads as 0 cm.
+  if (fabs(depth) <= Config::ULTRASONIC_ZERO_TOLERANCE_CM) depth = 0;
   if (depth < 0) depth = 0;
 
   reading.filteredDistanceCm = smooth;

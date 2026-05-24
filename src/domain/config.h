@@ -30,10 +30,14 @@ constexpr unsigned int TIP_PIN = 33;
 
 constexpr unsigned int ULTRASONIC_TRIG_PIN = 18;
 constexpr unsigned int ULTRASONIC_ECHO_PIN = 32;
-constexpr int ULTRASONIC_SAMPLES = 9;
-constexpr unsigned long ULTRASONIC_SAMPLE_DELAY_MS = 60UL;
-constexpr float ULTRASONIC_EMPTY_DISTANCE_CM = 225.0f;
+constexpr int ULTRASONIC_SAMPLES = 15;
+constexpr unsigned long ULTRASONIC_SAMPLE_DELAY_MS = 80UL;
+// Calibrated "empty" reference: distance from sensor face to the canal bottom
+// you consider 0 cm water at the deployment site.
+constexpr float ULTRASONIC_EMPTY_DISTANCE_CM = 174.0f;
 constexpr float ULTRASONIC_MAX_WATER_LEVEL_CM = 55.0f;
+// Treat small deviations around empty as 0 (requested tolerance).
+constexpr float ULTRASONIC_ZERO_TOLERANCE_CM = 5.0f;
 constexpr float ULTRASONIC_MIN_VALID_CM = 5.0f;
 constexpr float ULTRASONIC_MAX_VALID_CM = 450.0f;
 constexpr float ULTRASONIC_SMOOTHING_ALPHA = 0.25f;
